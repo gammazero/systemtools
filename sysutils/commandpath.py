@@ -1,16 +1,27 @@
 """
 CommandPath maintains a mapping of file names to the absolute file paths.
 
-When adding a new file name, if the absolute path of the file is not yet known,
-then a set of directories is search for the file.  Once the file is found in
-one of the directories, the files absolute path is saved.
+Use a CommandPath object like a dictionary to look up the absolute path to a
+file.  When looking up a path, if the absolute path of the file is not yet
+known, then a set of directories is searched to find the file.  Once the file
+is found in one of the directories, the file's absolute path is saved.
 
-The set of directories to search can be modified and specific mappings, not
-within the search directories can be set.
+The set of directories to search can be modified.  Specific file-to-path
+mappings can be added separately, for paths that are not within the set of
+search directories.
 
 CommandPath is primarily useful for discovering and caching the location of
-system commands when they may not be in the directories specified by PATH, and
-the location of the commands may be different on different systems.
+system commands when PATH cannot be relied, and when the the commands or other
+files may not be in an expected location.
+
+Example use:
+
+>>> import commandpath
+>>> cp = commandpath.CommandPath()
+>>> cp['ls']
+'/bin/ls'
+>>> cp['ifconfig']
+'/sbin/ifconfig'
 
 """
 import os

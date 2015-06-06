@@ -2,11 +2,11 @@
 Display progress bar.
 
 The progress bar implementation calculates the number of blocks to display as
-the amount of pregress is updated.  By defult, this prints a text-based
+the amount of progress is updated.  By default, this prints a text-based
 progress bar.
 
 When used in quite mode (disable printing), the progress bar can be used to
-determine how many blocks to disaply for any rendering of a block-based
+determine how many blocks to display for any rendering of a block-based
 progress bar.
 
 """
