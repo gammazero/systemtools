@@ -189,8 +189,8 @@ def setup_syslog_logging(
 
 
 def _get_log_level_value(log_level):
-    if not isinstance(log_level, basestring):
-        # Log leve is not string, so make sure value is int.
+    if not isinstance(log_level, str):
+        # Log level is not string, so make sure value is int.
         return int(log_level)
 
     # Convert level name to value.
