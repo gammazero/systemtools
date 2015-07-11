@@ -24,7 +24,15 @@ GB = MB*1024
 
 class SystemStats(object):
 
-    def __init__(self):
+    def __init__(self, show_bytes=False, verbose_du=False):
+        """
+        Arguments:
+        show_bytes -- If True, show absolute bytes in size values.  If False,
+                      only show sizes rounded to the highest significant power
+                      of two.
+        short_du   -- Show shorter disk usage strings.
+
+        """
         self._last_uptime_load = 0
         self._uptime = None
         self._load = None
@@ -34,6 +42,8 @@ class SystemStats(object):
 
         self._last_mem = 0
         self._mem_stats = None
+        self._show_bytes = show_bytes
+        self._verbose_du = verbose_du
 
     def __str__(self):
         """Get stats information as string."""
@@ -43,6 +53,13 @@ class SystemStats(object):
               self.memory_usage_str(),
               self.logical_cpu_count_str()]
         return '\n\n'.join(st)
+
+    def stats(self):
+        return {'disk_usage': self.disk_usage(),
+                'cpu_load': self.cpu_load(),
+                'uptime': self.uptime(),
+                'memory_usage': self.memory_usage(),
+                'logical_cpu_count': self.logical_cpu_count()}
 
     def uptime_str(self):
         """Return uptime string."""
@@ -60,14 +77,22 @@ class SystemStats(object):
         st = [title]
         st.append('-'*len(title))
         disks = self.disk_usage()
-        for mount in disks:
-            st.append('Usage for: %s' % mount)
-            disk_info = disks[mount]
-            for part in disk_info:
-                st.append('  %s: %s' % (part, disk_info[part]))
-            st.append('')
-        if disks:
-            st.pop()
+        if self._verbose_du:
+            for mount in sorted(disks):
+                disk_info = disks[mount]
+                st.append('Usage for: %s' % mount)
+                for datum in ('partition', 'size', 'used', 'available',
+                              'capacity'):
+                    st.append('  %s: %s' % (datum, disk_info[datum]))
+                st.append('')
+            if disks:
+                st.pop()
+        else:
+            for mount in sorted(disks):
+                disk_info = disks[mount]
+                st.append('%s\tsize=%s used=%s available=%s capacity=%s' % (
+                    mount, disk_info['size'], disk_info['used'],
+                    disk_info['available'], disk_info['capacity']))
         return '\n'.join(st)
 
     def cpu_load_str(self):
@@ -117,7 +142,7 @@ class SystemStats(object):
         information pertaining to that mount point.
 
         Each mount point dictionary containing the following keys: partition,
-        blocks, used, available, capacity.  Each value is a string describing
+        size, used, available, capacity.  Each value is a string describing
         the corresponding data.
 
         """
@@ -132,16 +157,23 @@ class SystemStats(object):
         block_size = int(df[0].split()[1].split('-')[0])
         ds = {}
         for l in df[1:]:
-            cell = l.split()
-            mount = cell[5]
-            used = int(cell[2]) * block_size
-            avail = int(cell[3]) * block_size
-            ds[mount] = {
-                'partition': cell[0],
-                'blocks': '%s (size=%d)' % (cell[1], block_size),
-                'used': '%s (%s)' % (used, SystemStats.size_str(used)),
-                'available': '%s (%s)' % (avail, SystemStats.size_str(avail)),
-                'capacity': cell[4]}
+            part, size_bks, used_bks, avail_bks, cap, mount = l.split()[:6]
+            size = int(size_bks) * block_size
+            used = int(used_bks) * block_size
+            avail = int(avail_bks) * block_size
+            info = {'partition': part, 'capacity': cap}
+            ds[mount] = info
+            if self._show_bytes:
+                # Show absolute bytes as well as short size value.
+                info['size'] = '%s (%s)' % (size, SystemStats.size_str(size))
+                info['used'] = '%s (%s)' % (used, SystemStats.size_str(used))
+                info['available'] = '%s (%s)' % (
+                    avail, SystemStats.size_str(avail))
+            else:
+                # Do not show absolute bytes in size values.
+                info['size'] = SystemStats.size_str(size)
+                info['used'] = SystemStats.size_str(used)
+                info['available'] = SystemStats.size_str(avail)
 
         self._last_disk = now
         self._disk_stats = ds
@@ -267,17 +299,26 @@ class SystemStats(object):
                 mem_avail = mem_buffers + mem_cached + mem_free
                 mem_used = mem_total - mem_avail
 
-                mem_free = '%d (%s)' % (mem_free,
-                                        SystemStats.size_str(mem_free))
-                mem_total = '%d (%s)' % (mem_total,
-                                         SystemStats.size_str(mem_total))
-                mem_avail = '%d (%s)' % (mem_avail,
-                                         SystemStats.size_str(mem_avail))
-                mem_used = '%d (%s)' % (mem_used,
-                                        SystemStats.size_str(mem_used))
-                swapped = '%d (%s)' % (swapped, SystemStats.size_str(swapped))
-                swap_total = '%d (%s)' % (swap_total,
-                                          SystemStats.size_str(swap_total))
+                if self._show_bytes:
+                    mem_free = '%d (%s)' % (mem_free,
+                                            SystemStats.size_str(mem_free))
+                    mem_total = '%d (%s)' % (mem_total,
+                                             SystemStats.size_str(mem_total))
+                    mem_avail = '%d (%s)' % (mem_avail,
+                                             SystemStats.size_str(mem_avail))
+                    mem_used = '%d (%s)' % (mem_used,
+                                            SystemStats.size_str(mem_used))
+                    swapped = '%d (%s)' % (swapped,
+                                           SystemStats.size_str(swapped))
+                    swap_total = '%d (%s)' % (swap_total,
+                                              SystemStats.size_str(swap_total))
+                else:
+                    mem_free = SystemStats.size_str(mem_free)
+                    mem_total = SystemStats.size_str(mem_total)
+                    mem_avail = SystemStats.size_str(mem_avail)
+                    mem_used = SystemStats.size_str(mem_used)
+                    swapped = SystemStats.size_str(swapped)
+                    swap_total = SystemStats.size_str(swap_total)
             except Exception:
                 pass
 
@@ -330,15 +371,25 @@ class SystemStats(object):
             mem_avail = mem_inactive + mem_cache + mem_free
             mem_used = mem_total - mem_avail
 
-            mem_free = '%d (%s)' % (mem_free, SystemStats.size_str(mem_free))
-            mem_total = '%d (%s)' % (mem_total,
-                                     SystemStats.size_str(mem_total))
-            mem_avail = '%d (%s)' % (mem_avail,
-                                     SystemStats.size_str(mem_avail))
-            mem_used = '%d (%s)' % (mem_used, SystemStats.size_str(mem_used))
-            swapped = '%d (%s)' % (swapped, SystemStats.size_str(swapped))
-            swap_total = '%d (%s)' % (swap_total,
-                                      SystemStats.size_str(swap_total))
+            if self._show_bytes:
+                mem_free = '%d (%s)' % (mem_free,
+                                        SystemStats.size_str(mem_free))
+                mem_total = '%d (%s)' % (mem_total,
+                                         SystemStats.size_str(mem_total))
+                mem_avail = '%d (%s)' % (mem_avail,
+                                         SystemStats.size_str(mem_avail))
+                mem_used = '%d (%s)' % (mem_used,
+                                        SystemStats.size_str(mem_used))
+                swapped = '%d (%s)' % (swapped, SystemStats.size_str(swapped))
+                swap_total = '%d (%s)' % (swap_total,
+                                          SystemStats.size_str(swap_total))
+            else:
+                mem_free = SystemStats.size_str(mem_free)
+                mem_total = SystemStats.size_str(mem_total)
+                mem_avail = SystemStats.size_str(mem_avail)
+                mem_used = SystemStats.size_str(mem_used)
+                swapped = SystemStats.size_str(swapped)
+                swap_total = SystemStats.size_str(swap_total)
         except Exception:
             pass
 
@@ -361,6 +412,7 @@ class SystemStats(object):
 
     @staticmethod
     def size_str(byte_size):
+        """Truncate number to highest significant power of 2 and add suffix."""
         if byte_size > GB:
             return str(round(float(byte_size) / GB, 1)) + 'G'
         if byte_size > MB:
@@ -371,5 +423,14 @@ class SystemStats(object):
 
 
 if __name__ == '__main__':
+    import argparse
+    ap = argparse.ArgumentParser(description='Show system information')
+    ap.add_argument('--verbose', '-v', action='store_true',
+                    help='Show verbose output.')
+    args = ap.parse_args()
+
     # This module can be run alone to output stats info for the local system.
-    print(SystemStats())
+    if args.verbose:
+        print(SystemStats(True, True))
+    else:
+        print(SystemStats(False, False))

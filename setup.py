@@ -8,12 +8,12 @@ except ImportError:
 def main():
     setup(
         name='sysutils',
-        version= '1.0.0',
+        version= '1.0.1',
         author='Andrew Gillis',
         author_email='gillis.andrewj@gmail.com',
         url='https://github.com/gammazero/py-sysutils',
         description='sysutils: System utility modules',
-        long_description = 'See https://github.com/gammazero/py-sysutils',
+        long_description = 'See https://github.com/gammazero/py-sysutils#py-sysutils',
         license='http://www.opensource.org/licenses/mit-license.php',
         platforms=['unix', 'linux', 'cygwin', 'win32'],
         keywords='system CLI utility',
