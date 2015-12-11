@@ -32,7 +32,7 @@ Examples:
   Exclude any item that contains the substring 'backup', case insensitive.
     > python rglob.py /tmp -p 'stuff/*' --exclude backup --ignore-case
 
-  Recursively search in /tmp for any files with a names starting with 'README'.
+  Recursively search in /tmp for files having a name that starts with 'README'.
     > python rglob.py /tmp -p '**/README.*' --nodirs
 
 """
@@ -96,6 +96,8 @@ class Filter(object):
         return (is_include, pattern)
 
     def __call__(self, s):
+        # Allow Filter object to be called as function, returning True or False
+        # telling whether or not the patterns allow given string.
         include = False
         for is_include_expr, expr in self._exprs:
             if include:
