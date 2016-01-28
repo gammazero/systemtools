@@ -15,9 +15,6 @@ __license__ = "http://www.opensource.org/licenses/mit-license.php"
 from select import select
 import sys
 
-if sys.version < '3':
-    input = raw_input
-
 
 def timed_input(prompt, timeout):
     """Wait for user input, or timeout.
@@ -77,7 +74,7 @@ def confirm(prompt, default=None, timeout=None):
             # No timeout after any user input.
             timeout = None
         else:
-            yn = input(prompt)
+            yn = raw_input(prompt)
         if yn:
             yn = yn.lower()
             if yn in ('y', 'yes'):
@@ -119,7 +116,7 @@ def ask_input(prompt, default=None, timeout=None):
     if timeout:
         answer = timed_input(prompt, timeout)
     else:
-        answer = input(prompt)
+        answer = raw_input(prompt)
     if default is not None and not answer:
         answer = default
 
@@ -166,7 +163,7 @@ def choose(prompt, choices, default=None, timeout=None):
             # No timeout after any user input.
             timeout = None
         else:
-            choice = input(prompt)
+            choice = raw_input(prompt)
 
         if choice:
             if choice in choices:
@@ -205,7 +202,7 @@ def choose_number(prompt, choices, default=None, timeout=None):
         prompt = prompt + ': '
         default = None
 
-    good_range = range(len(choices))
+    good_range = xrange(len(choices))
 
     # Prompt and read input, coninue until valid input given.
     answer = None
@@ -220,7 +217,7 @@ def choose_number(prompt, choices, default=None, timeout=None):
             # No timeout after any user input.
             timeout = None
         else:
-            choice = input(prompt)
+            choice = raw_input(prompt)
 
         if choice:
             if choice.isdigit() and int(choice) in good_range:

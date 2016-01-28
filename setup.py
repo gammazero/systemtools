@@ -4,6 +4,11 @@ try:
 except ImportError:
     from distutils.core import setup
 
+try:
+    from distutils.command.build_py import build_py_2to3 as build_py
+except ImportError:
+    from distutils.command.build_py import build_py
+
 
 def main():
     setup(
@@ -28,6 +33,8 @@ def main():
                      'Programming Language :: Python :: 2.7',
                      'Programming Language :: Python :: 3'],
         packages=['sysutils'],
+        cmdclass = {'build_py': build_py},
+        use_2to3=True,
         zip_safe=True,
         )
 

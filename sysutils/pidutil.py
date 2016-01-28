@@ -2,6 +2,8 @@
 Module with ulility functions for working with PID files and processes.
 
 """
+from __future__ import print_function
+
 import os
 import atexit
 import platform

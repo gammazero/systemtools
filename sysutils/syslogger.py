@@ -136,7 +136,7 @@ def setup_syslog_logging(
         facility_num = logging.handlers.SysLogHandler.facility_names.get(
             facility)
         if facility_num is None:
-            names = logging.handlers.SysLogHandler.facility_names.keys()
+            names = logging.handlers.SysLogHandler.facility_names.iterkeys()
             raise Exception('ERROR: unsupported syslog facility.  Must be '
                             'one of: %s' % ', '.join(names))
     else:

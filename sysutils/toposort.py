@@ -5,11 +5,11 @@ Andrew Gillis
 2009
 
 """
+from __future__ import print_function
 
 
 def toposort(edges, child_first=False, exclude_src_only=False):
-    """
-    Topologically sort a directed acyclic graph.
+    """Topologically sort a directed acyclic graph.
 
     A topological sort of a DAG G = (V, E) is a linear ordering of all its
     vertices such that if G contains an edge (u, v), then u appears before v in

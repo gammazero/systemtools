@@ -10,19 +10,20 @@ import time
 import os
 import platform
 
+import sizestr
+
 __author__ = "Andrew Gillis"
 
 
 # Seconds that stats are good before needing to be refreshed.
 STATS_TTL = 60
 
-# Values used when converting bytes into KB, MB and GB values.
-KB = 1024
-MB = KB*1024
-GB = MB*1024
-
 
 class SystemStats(object):
+
+    _last_uptime = 0
+    _uptime = {}
+    _load = {}
 
     def __init__(self, show_bytes=False, verbose_du=False):
         """
@@ -33,10 +34,6 @@ class SystemStats(object):
         short_du   -- Show shorter disk usage strings.
 
         """
-        self._last_uptime_load = 0
-        self._uptime = None
-        self._load = None
-
         self._last_disk = 0
         self._disk_stats = None
 
@@ -126,13 +123,13 @@ class SystemStats(object):
 
     def uptime(self):
         """Return uptime info dictionary."""
-        self._get_uptime_load()
-        return self._last_uptime
+        up, load = self._uptime_load()
+        return up
 
     def cpu_load(self):
         """Return CPU load information dictionary."""
-        self._get_uptime_load()
-        return self._last_load
+        up, load = self._uptime_load()
+        return load
 
     def disk_usage(self):
         """Return disk usage dictionary.
@@ -165,15 +162,15 @@ class SystemStats(object):
             ds[mount] = info
             if self._show_bytes:
                 # Show absolute bytes as well as short size value.
-                info['size'] = '%s (%s)' % (size, SystemStats.size_str(size))
-                info['used'] = '%s (%s)' % (used, SystemStats.size_str(used))
+                info['size'] = '%s (%s)' % (size, sizestr.size_str(size))
+                info['used'] = '%s (%s)' % (used, sizestr.size_str(used))
                 info['available'] = '%s (%s)' % (
-                    avail, SystemStats.size_str(avail))
+                    avail, sizestr.size_str(avail))
             else:
                 # Do not show absolute bytes in size values.
-                info['size'] = SystemStats.size_str(size)
-                info['used'] = SystemStats.size_str(used)
-                info['available'] = SystemStats.size_str(avail)
+                info['size'] = sizestr.size_str(size)
+                info['used'] = sizestr.size_str(used)
+                info['available'] = sizestr.size_str(avail)
 
         self._last_disk = now
         self._disk_stats = ds
@@ -192,9 +189,9 @@ class SystemStats(object):
             return self._mem_stats
 
         if platform.system() == 'Linux':
-            mem_stats = self._get_linux_mem()
+            mem_stats = self._linux_mem()
         elif platform.system() == 'FreeBSD':
-            mem_stats = self._get_freebsd_mem()
+            mem_stats = self._freebsd_mem()
         else:
             na = 'n/a'
             mem_stats = {'free': na, 'used': na, 'total': na, 'swapped': na,
@@ -220,13 +217,13 @@ class SystemStats(object):
             return 1
         return cores
 
-    def _get_uptime_load(self):
+    def _uptime_load(self):
         # If not enough time has elapsed, then do not update stats.
         now = int(time.time())
-        if now - self._last_uptime_load < STATS_TTL:
-            return
+        if now - SystemStats._last_uptime < STATS_TTL:
+            return SystemStats._uptime, SystemStats._load
 
-        self._last_uptime_load = now
+        SystemStats._last_uptime = now
         not_nums = string.whitespace+string.ascii_letters+string.punctuation
         uptime = subprocess.check_output('uptime').decode('utf-8')
 
@@ -247,15 +244,19 @@ class SystemStats(object):
         else:
             hours = 0
             minutes = duration
-        self._last_uptime = {'days': int(days), 'hours': int(hours),
-                             'minutes': int(minutes)}
+
+        u = {'days': int(days), 'hours': int(hours), 'minutes': int(minutes)}
 
         one, five, fifteen = uptime.strip(',').rsplit(None, 3)[-3:]
-        self._last_load = {'one': float(one.rstrip(',')),
-                           'five': float(five.rstrip(',')),
-                           'fifteen': float(fifteen.rstrip(','))}
+        l = {'one': float(one.rstrip(',')),
+             'five': float(five.rstrip(',')),
+             'fifteen': float(fifteen.rstrip(','))}
 
-    def _get_linux_mem(self):
+        SystemStats._uptime = u
+        SystemStats._load = l
+        return u, l
+
+    def _linux_mem(self):
         """Get the available memory for a linux system.
 
         This is done by reading /proc/meminfo
@@ -301,24 +302,24 @@ class SystemStats(object):
 
                 if self._show_bytes:
                     mem_free = '%d (%s)' % (mem_free,
-                                            SystemStats.size_str(mem_free))
+                                            sizestr.size_str(mem_free))
                     mem_total = '%d (%s)' % (mem_total,
-                                             SystemStats.size_str(mem_total))
+                                             sizestr.size_str(mem_total))
                     mem_avail = '%d (%s)' % (mem_avail,
-                                             SystemStats.size_str(mem_avail))
+                                             sizestr.size_str(mem_avail))
                     mem_used = '%d (%s)' % (mem_used,
-                                            SystemStats.size_str(mem_used))
+                                            sizestr.size_str(mem_used))
                     swapped = '%d (%s)' % (swapped,
-                                           SystemStats.size_str(swapped))
+                                           sizestr.size_str(swapped))
                     swap_total = '%d (%s)' % (swap_total,
-                                              SystemStats.size_str(swap_total))
+                                              sizestr.size_str(swap_total))
                 else:
-                    mem_free = SystemStats.size_str(mem_free)
-                    mem_total = SystemStats.size_str(mem_total)
-                    mem_avail = SystemStats.size_str(mem_avail)
-                    mem_used = SystemStats.size_str(mem_used)
-                    swapped = SystemStats.size_str(swapped)
-                    swap_total = SystemStats.size_str(swap_total)
+                    mem_free = sizestr.size_str(mem_free)
+                    mem_total = sizestr.size_str(mem_total)
+                    mem_avail = sizestr.size_str(mem_avail)
+                    mem_used = sizestr.size_str(mem_used)
+                    swapped = sizestr.size_str(swapped)
+                    swap_total = sizestr.size_str(swap_total)
             except Exception:
                 pass
 
@@ -326,7 +327,7 @@ class SystemStats(object):
                 'swapped': swapped, 'swap_total': swap_total,
                 'available': mem_avail}
 
-    def _get_freebsd_mem(self):
+    def _freebsd_mem(self):
         """Get the available memory for a FreeBSD system.
 
         This is done by reading information from sysctl.
@@ -373,53 +374,29 @@ class SystemStats(object):
 
             if self._show_bytes:
                 mem_free = '%d (%s)' % (mem_free,
-                                        SystemStats.size_str(mem_free))
+                                        sizestr.size_str(mem_free))
                 mem_total = '%d (%s)' % (mem_total,
-                                         SystemStats.size_str(mem_total))
+                                         sizestr.size_str(mem_total))
                 mem_avail = '%d (%s)' % (mem_avail,
-                                         SystemStats.size_str(mem_avail))
+                                         sizestr.size_str(mem_avail))
                 mem_used = '%d (%s)' % (mem_used,
-                                        SystemStats.size_str(mem_used))
-                swapped = '%d (%s)' % (swapped, SystemStats.size_str(swapped))
+                                        sizestr.size_str(mem_used))
+                swapped = '%d (%s)' % (swapped, sizestr.size_str(swapped))
                 swap_total = '%d (%s)' % (swap_total,
-                                          SystemStats.size_str(swap_total))
+                                          sizestr.size_str(swap_total))
             else:
-                mem_free = SystemStats.size_str(mem_free)
-                mem_total = SystemStats.size_str(mem_total)
-                mem_avail = SystemStats.size_str(mem_avail)
-                mem_used = SystemStats.size_str(mem_used)
-                swapped = SystemStats.size_str(swapped)
-                swap_total = SystemStats.size_str(swap_total)
+                mem_free = sizestr.size_str(mem_free)
+                mem_total = sizestr.size_str(mem_total)
+                mem_avail = sizestr.size_str(mem_avail)
+                mem_used = sizestr.size_str(mem_used)
+                swapped = sizestr.size_str(swapped)
+                swap_total = sizestr.size_str(swap_total)
         except Exception:
             pass
 
         return {'free': mem_free, 'used': mem_used, 'total': mem_total,
                 'swapped': swapped, 'swap_total': swap_total,
                 'available': mem_avail}
-
-    def _get_uptime(self):
-        """Get output from 'uptime' command
-
-        If insufficient time has elapsed since last call, then return cached
-        value.
-
-        """
-        now = int(time.time())
-        if now - self._last_uptime >= STATS_TTL:
-            self._last_uptime = now
-            self._uptime = subprocess.check_output('uptime').decode('utf-8')
-        return self._uptime
-
-    @staticmethod
-    def size_str(byte_size):
-        """Truncate number to highest significant power of 2 and add suffix."""
-        if byte_size > GB:
-            return str(round(float(byte_size) / GB, 1)) + 'G'
-        if byte_size > MB:
-            return str(round(float(byte_size) / MB, 1)) + 'M'
-        if byte_size > KB:
-            return str(round(float(byte_size) / KB, 1)) + 'K'
-        return str(byte_size)
 
 
 if __name__ == '__main__':
