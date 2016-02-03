@@ -10,8 +10,6 @@ import time
 import os
 import platform
 
-import sizestr
-
 __author__ = "Andrew Gillis"
 
 
@@ -162,15 +160,15 @@ class SystemStats(object):
             ds[mount] = info
             if self._show_bytes:
                 # Show absolute bytes as well as short size value.
-                info['size'] = '%s (%s)' % (size, sizestr.size_str(size))
-                info['used'] = '%s (%s)' % (used, sizestr.size_str(used))
+                info['size'] = '%s (%s)' % (size, size_str(size))
+                info['used'] = '%s (%s)' % (used, size_str(used))
                 info['available'] = '%s (%s)' % (
-                    avail, sizestr.size_str(avail))
+                    avail, size_str(avail))
             else:
                 # Do not show absolute bytes in size values.
-                info['size'] = sizestr.size_str(size)
-                info['used'] = sizestr.size_str(used)
-                info['available'] = sizestr.size_str(avail)
+                info['size'] = size_str(size)
+                info['used'] = size_str(used)
+                info['available'] = size_str(avail)
 
         self._last_disk = now
         self._disk_stats = ds
@@ -302,24 +300,24 @@ class SystemStats(object):
 
                 if self._show_bytes:
                     mem_free = '%d (%s)' % (mem_free,
-                                            sizestr.size_str(mem_free))
+                                            size_str(mem_free))
                     mem_total = '%d (%s)' % (mem_total,
-                                             sizestr.size_str(mem_total))
+                                             size_str(mem_total))
                     mem_avail = '%d (%s)' % (mem_avail,
-                                             sizestr.size_str(mem_avail))
+                                             size_str(mem_avail))
                     mem_used = '%d (%s)' % (mem_used,
-                                            sizestr.size_str(mem_used))
+                                            size_str(mem_used))
                     swapped = '%d (%s)' % (swapped,
-                                           sizestr.size_str(swapped))
+                                           size_str(swapped))
                     swap_total = '%d (%s)' % (swap_total,
-                                              sizestr.size_str(swap_total))
+                                              size_str(swap_total))
                 else:
-                    mem_free = sizestr.size_str(mem_free)
-                    mem_total = sizestr.size_str(mem_total)
-                    mem_avail = sizestr.size_str(mem_avail)
-                    mem_used = sizestr.size_str(mem_used)
-                    swapped = sizestr.size_str(swapped)
-                    swap_total = sizestr.size_str(swap_total)
+                    mem_free = size_str(mem_free)
+                    mem_total = size_str(mem_total)
+                    mem_avail = size_str(mem_avail)
+                    mem_used = size_str(mem_used)
+                    swapped = size_str(swapped)
+                    swap_total = size_str(swap_total)
             except Exception:
                 pass
 
@@ -374,29 +372,43 @@ class SystemStats(object):
 
             if self._show_bytes:
                 mem_free = '%d (%s)' % (mem_free,
-                                        sizestr.size_str(mem_free))
+                                        size_str(mem_free))
                 mem_total = '%d (%s)' % (mem_total,
-                                         sizestr.size_str(mem_total))
+                                         size_str(mem_total))
                 mem_avail = '%d (%s)' % (mem_avail,
-                                         sizestr.size_str(mem_avail))
+                                         size_str(mem_avail))
                 mem_used = '%d (%s)' % (mem_used,
-                                        sizestr.size_str(mem_used))
-                swapped = '%d (%s)' % (swapped, sizestr.size_str(swapped))
+                                        size_str(mem_used))
+                swapped = '%d (%s)' % (swapped, size_str(swapped))
                 swap_total = '%d (%s)' % (swap_total,
-                                          sizestr.size_str(swap_total))
+                                          size_str(swap_total))
             else:
-                mem_free = sizestr.size_str(mem_free)
-                mem_total = sizestr.size_str(mem_total)
-                mem_avail = sizestr.size_str(mem_avail)
-                mem_used = sizestr.size_str(mem_used)
-                swapped = sizestr.size_str(swapped)
-                swap_total = sizestr.size_str(swap_total)
+                mem_free = size_str(mem_free)
+                mem_total = size_str(mem_total)
+                mem_avail = size_str(mem_avail)
+                mem_used = size_str(mem_used)
+                swapped = size_str(swapped)
+                swap_total = size_str(swap_total)
         except Exception:
             pass
 
         return {'free': mem_free, 'used': mem_used, 'total': mem_total,
                 'swapped': swapped, 'swap_total': swap_total,
                 'available': mem_avail}
+
+
+def size_str(byte_size):
+    """Truncate number to highest significant power of 2 and add suffix."""
+    KB = 1024
+    MB = KB*1024
+    GB = MB*1024
+    if byte_size > GB:
+        return str(round(float(byte_size) / GB, 1)) + 'G'
+    if byte_size > MB:
+        return str(round(float(byte_size) / MB, 1)) + 'M'
+    if byte_size > KB:
+        return str(round(float(byte_size) / KB, 1)) + 'K'
+    return str(byte_size)
 
 
 if __name__ == '__main__':

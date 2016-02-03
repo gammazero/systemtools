@@ -17,11 +17,13 @@ def size_str(byte_size):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print('Usage: python', sys.argv[0], 'bytes', file=sys.stderr)
-        return 1
-
-    print(size_str(int(sys.argv[1])))
+    import argparse
+    ap = argparse.ArgumentParser(
+        description='Convert bytes to K, M, or G value')
+    ap.add_argument('bytes', type=int,
+                    help='integer number of bytes to convert')
+    args = ap.parse_args()
+    print(size_str(args.bytes))
     return 0
 
 

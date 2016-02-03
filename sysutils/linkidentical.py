@@ -35,8 +35,6 @@ import os
 import hashlib
 import shutil
 
-import sizestr
-
 
 def hash_file(filename):
     """Calculate SHA1 hash of file."""
@@ -79,8 +77,9 @@ def link_same_files(root_dir, name_prefix=None, always_symlink=False,
                 continue
             fpath = os.path.join(dirpath, fname)
             if os.path.isfile(fpath) and not os.path.islink(fpath):
-                size_file_map.setdefault(
-                    os.path.getsize(fpath), []).append(fpath)
+                fsize = os.path.getsize(fpath)
+                if fsize > 0:
+                    size_file_map.setdefault(fsize, []).append(fpath)
 
     # Prune unique files, leaving files having another file of the same size.
     # From remaining files, create a map {hash: filepath, ..}
@@ -95,10 +94,16 @@ def link_same_files(root_dir, name_prefix=None, always_symlink=False,
     link_count = 0
     size_saved = 0
 
+    def fkey(name):
+        # Sort by shortest-basename, shortest-path
+        return len(os.path.basename(name)), len(name)
+
     # Link files with shorter names to file with longest name.
     for k, files in hash_file_map.iteritems():
-        # Sort files by name length and get gile with longest name.
-        files.sort(cmp=lambda x, y: cmp(len(x), len(y)))
+        # Sort files and get file with longest name, or longest path if names
+        # are the same.  This only matters for symlinks, but since a failed
+        # hardlink can result in a symlink, do it anyway.
+        files.sort(key=fkey)
         base_file = files.pop()
         base_size = os.path.getsize(base_file)
 
@@ -158,9 +163,23 @@ def link_same_files(root_dir, name_prefix=None, always_symlink=False,
 
     if not no_stats:
         print('\nReplaced', link_count, 'files with links')
-        print('Reduced storage by', sizestr.size_str(size_saved))
+        print('Reduced storage by', size_str(size_saved))
 
     return link_count, size_saved
+
+
+def size_str(byte_size):
+    """Truncate number to highest significant power of 2 and add suffix."""
+    KB = 1024
+    MB = KB*1024
+    GB = MB*1024
+    if byte_size > GB:
+        return str(round(float(byte_size) / GB, 1)) + 'G'
+    if byte_size > MB:
+        return str(round(float(byte_size) / MB, 1)) + 'M'
+    if byte_size > KB:
+        return str(round(float(byte_size) / KB, 1)) + 'K'
+    return str(byte_size)
 
 
 def main():
