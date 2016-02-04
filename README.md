@@ -22,6 +22,13 @@ Usable as context handler, so using the with statement acquires the associated l
 
 Replace identical files, in directory tree, with links to one real file.
 
+Search recursively through the top level directory to find identical files.  For each set of identical files, keep only one file and replace all the others with hardlinks, or symlinks if specified.  When creating symlinks, keep the file with the longest name or deepest in the directory tree if names are the same, and replace all other copies with symlinks.  Symlinks are used when hardlinks
+fail.
+
+This is useful when there are multiple copies of files in different in different locations of a directory tree, and all copies of each file should remain identical.  Converting all the files into links to the same file ensures that the files remain the same as well as saves the space used by multiple copies.
+
+Optionally returns information about number of files replaced and storage space saved.
+
 ## pidutil
 
 Utility functions for working with PID files and processes on Linux/UNIX systems.
