@@ -1,4 +1,4 @@
-# py-sysutils
+# systemtools Python System Tools
 
 Python system utilities modules.
 
@@ -20,6 +20,10 @@ Mutex implemented as file-based lock.  This is useful for implementing a mutex s
 
 Usable as context handler, so using the with statement acquires the associated lock for the duration of the enclosed block.
 
+## linkidentical
+
+Replace identical files, in directory tree, with links to one real file.
+
 ## pidutil
 
 Utility functions for working with PID files and processes on Linux/UNIX systems.
@@ -27,6 +31,10 @@ Utility functions for working with PID files and processes on Linux/UNIX systems
 ## progressbar
 
 The ProgressBar object calculates the number of blocks to display as the amount of progress is updated.  By default, this prints a text-based progress bar.
+
+## rglob
+
+Recursive glob matcher to compare directory tree against expressions and filter matching items.
 
 ## shuffle
 
