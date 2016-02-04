@@ -1,6 +1,4 @@
-# systemtools Python System Tools
-
-Python system utilities modules.
+# systemtools - Python system utility modules
 
 ## checktcpconn
 
