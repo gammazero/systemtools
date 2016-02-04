@@ -1,6 +1,6 @@
 # systemtools - Python system utility modules
 
-The systemtools package is a collection of [Python](https://www.python.org/) system utility modules.  All modules can be used as stand-alone command utilities and as modules imported into other code.
+The systemtools package is a collection of [Python](https://www.python.org/) system utility modules.  All modules can be imported into other code and most can also be used as stand-alone command utilities.
 
 ## Installation
 
