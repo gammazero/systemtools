@@ -13,7 +13,7 @@ except ImportError:
 def main():
     setup(
         name='systemtools',
-        version= '1.0.1',
+        version= '1.0.2',
         author='Andrew Gillis',
         author_email='gillis.andrewj@gmail.com',
         url='https://github.com/gammazero/systemtools',
