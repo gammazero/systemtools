@@ -30,10 +30,11 @@ will be changed so that there is only one instance of the file:
 """
 from __future__ import print_function
 
-import sys
-import os
+import fnmatch
 import hashlib
+import os
 import shutil
+import sys
 
 
 def hash_file(filename):
@@ -49,8 +50,9 @@ def hash_file(filename):
     return hasher.hexdigest()
 
 
-def link_same_files(root_dir, name_prefix=None, always_symlink=False,
-                    absolute_symlink=False, quiet=False, no_stats=False):
+def link_same_files(root_dir, pattern=None, link=False,
+                    always_symlink=False, absolute_symlink=False, quiet=False,
+                    silent=False):
     """Keep longest-named file and replace copies with links.
 
     If identical files are found, then the file with the longest path name is
@@ -73,23 +75,24 @@ def link_same_files(root_dir, name_prefix=None, always_symlink=False,
     size_file_map = {}
     for dirpath, dirnames, filenames in os.walk(root_dir):
         for fname in filenames:
-            if name_prefix and not fname.startswith(name_prefix):
+            if pattern and not fnmatch.fnmatch(fname, pattern):
                 continue
             fpath = os.path.join(dirpath, fname)
-            if os.path.isfile(fpath) and not os.path.islink(fpath):
-                fsize = os.path.getsize(fpath)
-                if fsize > 0:
-                    size_file_map.setdefault(fsize, []).append(fpath)
+            if not os.path.isfile(fpath) or os.path.islink(fpath):
+                continue
+            fsize = os.path.getsize(fpath)
+            if fsize == 0:
+                continue
+            size_file_map.setdefault(fsize, []).append(fpath)
 
     # Prune unique files, leaving files having another file of the same size.
     # From remaining files, create a map {hash: filepath, ..}
     hash_file_map = {}
-    for filepaths in (v for v in size_file_map.itervalues() if len(v) > 1):
+    for filepaths in size_file_map.itervalues():
+        if len(filepaths) < 2:
+            continue
         for fpath in filepaths:
             hash_file_map.setdefault(hash_file(fpath), []).append(fpath)
-
-    # Prune unique files
-    hash_file_map = {k: v for k, v in hash_file_map.iteritems() if len(v) > 1}
 
     link_count = 0
     size_saved = 0
@@ -99,7 +102,9 @@ def link_same_files(root_dir, name_prefix=None, always_symlink=False,
         return len(os.path.basename(name)), len(name)
 
     # Link files with shorter names to file with longest name.
-    for k, files in hash_file_map.iteritems():
+    for files in hash_file_map.itervalues():
+        if len(files) < 2:
+            continue
         # Sort files and get file with longest name, or longest path if names
         # are the same.  This only matters for symlinks, but since a failed
         # hardlink can result in a symlink, do it anyway.
@@ -114,16 +119,22 @@ def link_same_files(root_dir, name_prefix=None, always_symlink=False,
                 # try to link.
                 continue
 
+            if not link:
+                size_saved += base_size
+                link_count += 1
+                if not quiet:
+                    print('link:', os.path.relpath(f, root_dir), '<-->',
+                          os.path.relpath(base_file, root_dir))
+                continue
+
             try:
                 os.unlink(f)
             except OSError:
                 print('cannot unlink file:', f, file=sys.stderr)
                 continue
 
-            if always_symlink:
-                create_symlink=True
-            else:
-                create_symlink=False
+            create_symlink = always_symlink
+            if not always_symlink:
                 try:
                     os.link(base_file, f)
                     if not quiet:
@@ -161,8 +172,11 @@ def link_same_files(root_dir, name_prefix=None, always_symlink=False,
             size_saved += base_size
             link_count += 1
 
-    if not no_stats:
-        print('\nReplaced', link_count, 'files with links')
+    if not silent:
+        print()
+        if not link:
+            print('If writing links (-w), would have...')
+        print('Replaced', link_count, 'files with links')
         print('Reduced storage by', size_str(size_saved))
 
     return link_count, size_saved
@@ -179,7 +193,7 @@ def size_str(byte_size):
         return str(round(float(byte_size) / MB, 1)) + 'M'
     if byte_size > KB:
         return str(round(float(byte_size) / KB, 1)) + 'K'
-    return str(byte_size)
+    return str(byte_size) + ' bytes'
 
 
 def main():
@@ -188,21 +202,22 @@ def main():
         description='Convert identical files to links to one real file')
     ap.add_argument('root',
                     help='Top-level directory to search for files to link')
+    ap.add_argument('--write', '-w', action='store_true',
+                    help='Write links to filesystem')
     ap.add_argument('--symlink', '-s', action='store_true',
-                    help='Use symlinks only to link files')
+                    help='Link files using only symlinks')
     ap.add_argument('--absolute', '-a', action='store_true',
                     help='When creating symlink, use absolute instead of '
                     'relative link.')
-    ap.add_argument('--prefix', '-p',
-                    help='Match only files starting with given prefix.')
+    ap.add_argument('--pattern', '-p', help='Only link files matching pattern')
     ap.add_argument('--quiet', '-q', action='store_true',
-                    help='Do not print link creation output')
-    ap.add_argument('--nostats', '-ns', action='store_true',
-                    help='Do not print stats')
+                    help='Do not print individual link creation messages')
+    ap.add_argument('--silent', '-qq', action='store_true',
+                    help='Do not print results, implies --quiet')
     args = ap.parse_args()
 
-    link_same_files(args.root, args.prefix, args.symlink, args.absolute,
-                    args.quiet, args.nostats)
+    link_same_files(args.root, args.pattern, args.write, args.symlink,
+                    args.absolute, args.quiet, args.silent)
     return 0
 
 
