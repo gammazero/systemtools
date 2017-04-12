@@ -4,7 +4,7 @@ Replace identical files with links to one real file.
 Search recursively through the top level directory to find identical files.
 For each set of identical files, keep only the file with the longest name and
 replace all other copies with symlinks to the longest-named file.  The use of
-hardlinks or symlinkss can be specified.  Symlinks are created when hardlinks
+hardlinks or symlinks can be specified.  Symlinks are created when hardlinks
 fail.
 
 This is useful when there are multiple copies of files in different in
@@ -41,9 +41,8 @@ try:
 except ImportError:
     import Queue as queue
 
-
-def link_same_files(root_dir, pattern=None, link=False, symlink=False,
-                    absolute=False, quiet=False, silent=False):
+def link_same_files(roots, pattern=None, link=False, symlink=False,
+                    absolute=False, quiet=False, verbose=False):
     """Replace copies of files with links to a single file.
 
     If identical files are found, then the file with the longest path name is
@@ -57,38 +56,44 @@ def link_same_files(root_dir, pattern=None, link=False, symlink=False,
     permits links to maintain their validity regardless of the mount point used
     for the filesystem.
 
+    Return: None if OK.  Otherwise, error string.
+
     """
-    root_dir = os.path.normpath(os.path.expanduser(root_dir))
-    if not os.path.isdir(root_dir):
-        return '%s is not a directory' % (root_dir,)
+    roots, err = _normalize_roots(roots, quiet)
+    if err:
+        return err
 
     if not quiet:
-        print('Linking identical files in', root_dir)
+        print('Linking identical files in', ', '.join(roots))
 
     # Walk directory and create map, {size: filepath, ..}.  This allows files,
     # that do not match another file in size, to be eliminated without having
     # to calculate a hash of the file.
     size_file_map = {}
-    for dirpath, dirnames, filenames in os.walk(root_dir):
-        for fname in filenames:
-            fpath = os.path.join(dirpath, fname)
-            if not os.path.isfile(fpath) or os.path.islink(fpath):
-                continue
-            fsize = os.path.getsize(fpath)
-            if fsize == 0:
-                continue
-            if pattern and not fnmatch.fnmatch(fname, pattern):
-                continue
-            size_file_map.setdefault(fsize, []).append(fpath)
+    for root_dir in roots:
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            for fname in filenames:
+                fpath = os.path.join(dirpath, fname)
+                if not os.path.isfile(fpath) or os.path.islink(fpath):
+                    continue
+                fsize = os.path.getsize(fpath)
+                if fsize == 0:
+                    continue
+                if pattern and not fnmatch.fnmatch(fname, pattern):
+                    continue
+                size_file_map.setdefault(fsize, []).append(fpath)
 
     statsq = queue.Queue()
 
+    #  Thread function to check and link files concurrently.
     def check_and_link(filepaths):
         links = 0
         saved = 0
-        sameLists = _check_same(filepaths)
-        for files in sameLists:
-            l, s = _link_files(files, root_dir, link, symlink, absolute, quiet)
+        hash_map = _create_hash_map(filepaths)
+        for files in hash_map.itervalues():
+            if len(files) < 2:
+                continue
+            l, s = _link_files(files, link, symlink, absolute, verbose)
             links += l
             saved += s
 
@@ -111,7 +116,7 @@ def link_same_files(root_dir, pattern=None, link=False, symlink=False,
         link_count += l
         size_saved += s
 
-    if not silent:
+    if not quiet:
         print()
         if not link:
             print('If writing links (-w), would have...')
@@ -121,14 +126,19 @@ def link_same_files(root_dir, pattern=None, link=False, symlink=False,
     return None
 
 
-def link_same_update(update_file, root_dir, pattern=None, link=False,
-                     symlink=False, absolute=False, quiet=False, silent=False):
-    """Replace copies of a specified file with links to a single file."""
+def link_same_update(update_file, roots, pattern=None, link=False,
+                     symlink=False, absolute=False, quiet=False,
+                     verbose=False):
+    """Replace copies of a specified file with links to a single file.
+
+    Return: None if OK.  Otherwise, error string.
+
+    """
     if not update_file:
         return "Update file not specified"
-    root_dir = os.path.normpath(os.path.expanduser(root_dir))
-    if not os.path.isdir(root_dir):
-        return '%s is not a directory' % (root_dir,)
+    roots, err = _normalize_roots(roots, quiet)
+    if err:
+        return err
     if not os.path.isfile(update_file):
         return '%s is not a file' % (update_file,)
     update_size = os.path.getsize(update_file)
@@ -137,31 +147,33 @@ def link_same_update(update_file, root_dir, pattern=None, link=False,
     update_hash = _hash_file(update_file)
 
     if not quiet:
-        print('Linking', update_file, 'to identical files in', root_dir)
+        print('Linking', update_file, 'to identical files in',
+              ', '.join(roots))
 
     # Walk directory and find files that are identical to the update file.
     same = [update_file]
-    for dirpath, dirnames, filenames in os.walk(root_dir):
-        for fname in filenames:
-            fpath = os.path.join(dirpath, fname)
-            if not os.path.isfile(fpath) or os.path.islink(fpath):
-                continue
-            if os.path.getsize(fpath) != update_size:
-                continue
-            if pattern and not fnmatch.fnmatch(fname, pattern):
-                continue
-            if _hash_file(fpath) != update_hash:
-                continue
-            same.append(fpath)
+    for root_dir in roots:
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            for fname in filenames:
+                fpath = os.path.join(dirpath, fname)
+                if not os.path.isfile(fpath) or os.path.islink(fpath):
+                    continue
+                if os.path.getsize(fpath) != update_size:
+                    continue
+                if pattern and not fnmatch.fnmatch(fname, pattern):
+                    continue
+                if _hash_file(fpath) != update_hash:
+                    continue
+                same.append(fpath)
 
     link_count = 0
     size_saved = 0
     if len(same) > 1:
         # Link files that are identical to the update file.
-        link_count, size_saved = _link_files(same, root_dir, link, symlink,
-                                             absolute, quiet)
+        link_count, size_saved = _link_files(same, link, symlink, absolute,
+                                             verbose)
 
-    if not silent:
+    if not quiet:
         print()
         if not link:
             print('If writing links (-w), would have...')
@@ -169,6 +181,46 @@ def link_same_update(update_file, root_dir, pattern=None, link=False,
         print('Reduced storage by', size_str(size_saved))
 
     return None
+
+
+def _normalize_roots(roots, quiet):
+    for i, root_dir in enumerate(roots):
+        root_dir = os.path.normpath(os.path.expanduser(root_dir))
+        if not os.path.isdir(root_dir):
+            return None, root_dir + ' is not a directory'
+        roots[i] = root_dir
+
+    if not roots:
+        return ['.'], None
+
+    if len(roots) > 1:
+        # Remove any root that is the same or a subdirectory of another.
+        i = 0
+        while i < len(roots):
+            j = 0
+            removed = False
+            while j < len(roots):
+                if j == i:
+                    j += 1
+                    continue
+
+                if roots[i].startswith(roots[j]):
+                    if not quiet:
+                        print(roots[i], "already included in", roots[j],
+                              file=sys.stderr)
+
+                    # This root is a subdirectory of another, so remove it.
+                    roots[i] = roots[-1]
+                    roots = roots[:-1]
+                    removed = True
+                    break
+
+                j += 1
+
+            if not removed:
+                i += 1
+
+    return roots, None
 
 
 def _hash_file(filename):
@@ -184,17 +236,36 @@ def _hash_file(filename):
     return hasher.hexdigest()
 
 
-def _check_same(filepaths):
+def _create_hash_map(filepaths):
     # For list of same size files, create a map {hash: filepath, ..}
+    same_as = []
     hash_file_map = {}
-    for fpath in filepaths:
-        hash_file_map.setdefault(_hash_file(fpath), []).append(fpath)
+    for i, fpath in enumerate(filepaths):
+        if not fpath:
+            continue
 
-    # Prune unique files, return lists of identical files.
-    return [files for files in hash_file_map.itervalues() if len(files) > 1]
+        # Find hardlinks to current file, and reuse hash for these.
+        for j in xrange(i + 1, len(filepaths)):
+            if not filepaths[j]:
+                continue
+
+            if os.path.samefile(fpath, filepaths[j]):
+                same_as.append(filepaths[j])
+                filepaths[j] = None
+
+        h = _hash_file(fpath)
+        if same_as:
+            # Reuse hash for additional hardlinked files.
+            same_as.append(fpath)
+            hash_file_map.setdefault(h, []).extend(same_as)
+            same_as = same_as[:0]
+        else:
+            hash_file_map.setdefault(h, []).append(fpath)
+
+    return hash_file_map
 
 
-def _link_files(files, root_dir, link, symlink, absolute, quiet):
+def _link_files(files, link, symlink, absolute, verbose):
     link_count = 0
     size_saved = 0
 
@@ -219,35 +290,46 @@ def _link_files(files, root_dir, link, symlink, absolute, quiet):
         if not link:
             size_saved += base_size
             link_count += 1
-            if not quiet:
-                print('link:', os.path.relpath(f, root_dir), '<-->',
-                      os.path.relpath(base_file, root_dir))
+            if verbose:
+                if symlink:
+                    if absolute:
+                        source = base_file
+                    else:
+                        rp = os.path.relpath(os.path.dirname(base_file),
+                                             os.path.dirname(f))
+                        if rp == '.':
+                            source = os.path.basename(base_file)
+                        else:
+                            source = os.path.join(rp, os.path.basename(base_file))
+                    print('symlink:', f, '--->', source)
+                else:
+                    print('link:', f, '<-->', base_file)
             continue
 
         try:
             os.unlink(f)
         except OSError:
-            print('cannot unlink file:', f, file=sys.stderr)
+            print('cannot remove file:', f, file=sys.stderr)
             continue
 
         create_symlink = symlink
         if not symlink:
             try:
                 os.link(base_file, f)
-                if not quiet:
-                    print('hardlink:', os.path.relpath(f, root_dir),
-                          '<-->', os.path.relpath(base_file, root_dir))
+                if verbose:
+                    print('hardlink:', f, '<-->', base_file)
             except OSError:
                 create_symlink=True
-                print('could not create hardlink, symlink instead',
-                      file=sys.stderr)
+                if verbose:
+                    print('could not create hardlink, symlink instead',
+                          file=sys.stderr)
 
         if create_symlink:
             if absolute:
                 source = base_file
             else:
-                rp = os.path.relpath(os.path.dirname(f),
-                                     os.path.dirname(base_file))
+                rp = os.path.relpath(os.path.dirname(base_file),
+                                     os.path.dirname(f))
                 if rp == '.':
                     source = os.path.basename(base_file)
                 else:
@@ -255,12 +337,10 @@ def _link_files(files, root_dir, link, symlink, absolute, quiet):
 
             try:
                 os.symlink(source, f)
-                if not quiet:
-                    print('symlink:', os.path.relpath(f, root_dir), '--->',
-                          os.path.relpath(base_file, root_dir))
+                if verbose:
+                    print('symlink:', f, '--->', source)
             except OSError as e:
-                print('faile create symlink for %s: %s'
-                      % (os.path.relpath(base_file, root_dir), e),
+                print('failed to create symlink for %s: %s' % (base_file, e),
                       file=sys.stderr)
                 # Restore file.
                 shutil.copy2(base_file, f)
@@ -290,33 +370,33 @@ def main():
     import argparse
     ap = argparse.ArgumentParser(
         description='Convert identical files to links to one real file')
-    ap.add_argument('root', nargs='?', default=os.getcwd(),
+    ap.add_argument('roots', nargs='*', default=['.'],
                     help='Top-level directory to search for files to link. '
                     'Current directory if not specified.')
     ap.add_argument('--write', '-w', action='store_true',
                     help='Write links to filesystem')
-    ap.add_argument('--symlink', '-s', action='store_true',
+    ap.add_argument('--symlink', action='store_true',
                     help='Link files using only symlinks')
     ap.add_argument('--absolute', '-a', action='store_true',
                     help='When creating symlink, use absolute instead of '
                     'relative link.')
     ap.add_argument('--pattern', '-p', help='Only link files matching pattern')
     ap.add_argument('--quiet', '-q', action='store_true',
-                    help='Do not print individual link creation messages')
-    ap.add_argument('--silent', '-qq', action='store_true',
-                    help='Do not print results, implies --quiet')
+                    help='Suppress output messages and warnings')
+    ap.add_argument('--verbose', '-v', action='store_true',
+                    help='Print individual link creation messages')
     ap.add_argument('--update', '-u',
                     help='Only link files identical to specified update file')
     args = ap.parse_args()
 
     if args.update:
         err = link_same_update(
-            args.update, args.root, args.pattern, args.write, args.symlink,
-            args.absolute, args.quiet, args.silent)
+            args.update, args.roots, args.pattern, args.write, args.symlink,
+            args.absolute, args.quiet, args.verbose)
     else:
         err = link_same_files(
-            args.root, args.pattern, args.write, args.symlink, args.absolute,
-            args.quiet, args.silent)
+            args.roots, args.pattern, args.write, args.symlink, args.absolute,
+            args.quiet, args.verbose)
 
     if err:
         print(err, file=sys.stderr)
