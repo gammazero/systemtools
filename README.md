@@ -44,6 +44,12 @@ Optionally returns information about number of files replaced and storage space 
 
 Utility functions for working with PID files and processes on Linux/UNIX systems.
 
+### primes
+
+Utility to find prime numbers up to a given maximum.  Command line program
+displays prime numbers, counts how many there are, and optionally displays
+distance between them.
+
 ### progressbar
 
 The ProgressBar object calculates the number of blocks to display as the amount of progress is updated.  By default, this prints a text-based progress bar.
